@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Streaming with Background Replacement</title>
+</head>
+<body>
+    <h1>Live Streaming with Background Replacement</h1>
+    <div>
+        <!-- This is where the video stream will be displayed -->
+        <img src="{{ url_for('video_feed') }}" style="width: 100%; max-width: 800px; height: auto;" />
+    </div>
+</body>
+</html>
