@@ -18,6 +18,13 @@ if background is None:
 # Initialize video capture
 cap = cv2.VideoCapture(0)
 
+def adjust_brightness_contrast(image, brightness=0, contrast=0):
+    """Adjust brightness and contrast of an image."""
+    beta = brightness  # Brightness
+    alpha = 1 + (contrast / 100.0)  # Contrast scale factor
+    adjusted = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+    return adjusted
+
 def generate_frames():
     global cap
     while True:
@@ -39,14 +46,14 @@ def generate_frames():
 
         # Refine the mask (threshold and smooth)
         _, refined_mask = cv2.threshold(mask, 0.5, 1.0, cv2.THRESH_BINARY)
-        refined_mask = cv2.GaussianBlur(refined_mask, (31, 31), 0)
+        refined_mask = cv2.GaussianBlur(refined_mask, (15, 15), 0)  # Reduced kernel size
 
         # Prepare masks
         foreground_mask = refined_mask[..., None]  # Expand dimensions
         background_mask = 1.0 - foreground_mask  # Inverse mask for the background
 
         # Ensure masks have the same type and dimensions
-        foreground_mask = np.repeat(foreground_mask, 3, axis=2).astype(np.float32)
+        foreground_mask = np.repeat(foreground_mask, 3, axis=2).astype(np.float32) * 0.85  # Further dim foreground
         background_mask = np.repeat(background_mask, 3, axis=2).astype(np.float32)
 
         # Convert frame and background to float32 for element-wise operations
@@ -60,6 +67,9 @@ def generate_frames():
         # Combine the two
         output_frame = cv2.add(foreground, background_segmented)
         output_frame = output_frame.astype(np.uint8)  # Convert back to uint8
+
+        # Apply brightness and contrast adjustment
+        output_frame = adjust_brightness_contrast(output_frame, brightness=-20, contrast=15)  # Increased brightness reduction
 
         # Convert frame to JPEG for streaming
         ret, buffer = cv2.imencode('.jpeg', output_frame)
