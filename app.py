@@ -7,9 +7,7 @@ import threading
 app = Flask(__name__)
 
 # Initialize MediaPipe for segmentation
-#Importing selfie_segmentation module
 mp_selfie_segmentation = mp.solutions.selfie_segmentation
-#create an instance of the SelfieSegmentation class, model_selection=1 argument specifies which segmentation model to use.
 segmentation = mp_selfie_segmentation.SelfieSegmentation(model_selection=1)
 
 # Load and preprocess the background image
@@ -19,15 +17,18 @@ if background is None:
 
 # Initialize video capture
 cap = cv2.VideoCapture(0)
-frame_width, frame_height = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-background_resized = cv2.resize(background, (frame_width, frame_height))
 
 def generate_frames():
+    global cap
     while True:
         # Capture frame-by-frame
         ret, frame = cap.read()
         if not ret:
             break
+
+        # Resize the background to match the frame dimensions
+        frame_height, frame_width = frame.shape[:2]
+        background_resized = cv2.resize(background, (frame_width, frame_height))
 
         # Convert frame to RGB for MediaPipe
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -41,12 +42,20 @@ def generate_frames():
         refined_mask = cv2.GaussianBlur(refined_mask, (31, 31), 0)
 
         # Prepare masks
-        foreground_mask = refined_mask.astype(np.float32)
-        background_mask = 1.0 - foreground_mask
+        foreground_mask = refined_mask[..., None]  # Expand dimensions
+        background_mask = 1.0 - foreground_mask  # Inverse mask for the background
 
-        # Extract the foreground and background
-        foreground = cv2.multiply(frame.astype(np.float32), foreground_mask[..., None])
-        background_segmented = cv2.multiply(background_resized.astype(np.float32), background_mask[..., None])
+        # Ensure masks have the same type and dimensions
+        foreground_mask = np.repeat(foreground_mask, 3, axis=2).astype(np.float32)
+        background_mask = np.repeat(background_mask, 3, axis=2).astype(np.float32)
+
+        # Convert frame and background to float32 for element-wise operations
+        frame_float = frame.astype(np.float32)
+        background_resized = background_resized.astype(np.float32)
+
+        # Extract foreground and background
+        foreground = cv2.multiply(frame_float, foreground_mask)
+        background_segmented = cv2.multiply(background_resized, background_mask)
 
         # Combine the two
         output_frame = cv2.add(foreground, background_segmented)
@@ -73,4 +82,12 @@ def run_flask():
     app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
+    try:
+        threading.Thread(target=run_flask).start()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Release resources
+        cap.release()
+        segmentation.close()
+        print("Resources released.")
